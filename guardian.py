@@ -6,11 +6,9 @@ from tencentcloud.common.profile.client_profile import ClientProfile
 from tencentcloud.common.profile.http_profile import HttpProfile
 from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
 from tencentcloud.lighthouse.v20200324 import lighthouse_client, models
-import threading
 import json
 import requests
 
-CHECK_INTERVAL = 10 # 分钟
 ACCOUNT = {
 	'SecretId': 'SecretKey'
 }
@@ -111,7 +109,7 @@ def sct_push(message):
 	requests.post('https://sctapi.ftqq.com/' + SCT_KEY + '.send', post_data)
 
 def guardian():
-	global ACCOUNT, REGION, QUOTA, CHECK_INTERVAL, THREAD
+	global ACCOUNT, REGION, QUOTA, CHECK_INTERVAL
 	for account_count in ACCOUNT:
 		for region_count in REGION:
 			object_d = light_house(account_count, ACCOUNT.get(account_count), region_count)
@@ -124,9 +122,6 @@ def guardian():
 					message += 'ID:' + instances_count + '\n\nIP地址:' + single_instances.get('ip_address') + '\n\n总共流量包:' + str(round(single_instances.get('total_traffic_package') / GB, 2)) + ' GB\n\n使用流量包:' + str(round(single_instances.get('use_traffic_package') / GB, 2)) + ' GB\n\n剩余流量包:' + str(round(single_instances.get('surplus_traffic_package') / GB, 2)) + ' GB\n\n'
 				message += '以上实例流量包使用已达到限额,已执行关机命令.'
 				sct_push(message)
-	THREAD = threading.Timer(CHECK_INTERVAL * 60, guardian)
-	THREAD.start()
 
 if __name__ == '__main__':
-	THREAD = threading.Timer(0, guardian)
-	THREAD.start()
+	guardian()
