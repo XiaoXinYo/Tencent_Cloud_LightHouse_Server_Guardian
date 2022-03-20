@@ -13,7 +13,7 @@ ACCOUNT = {
 	'SecretId': 'SecretKey'
 }
 REGION = ['ap-beijing', 'ap-chengdu', 'ap-guangzhou', 'ap-hongkong', 'ap-nanjing', 'ap-shanghai', 'ap-singapore', 'ap-tokyo', 'eu-moscow', 'na-siliconvalley']
-QUOTA = 0.95 # 限额值,1为100%
+QUOTA = 0.9 # 限额值,1为100%
 SCT_KEY = 'SCT_KEY'
 
 class light_house:
@@ -90,14 +90,17 @@ class light_house:
 	def check(self, quota):
 		self.__get_instances()
 		self.__get_traffic_package()
-		limit_instances = self.instances.copy()
+		normal_instances = {}
+		limit_instances = {}
 		for instances_count in self.instances:
 			single_instances = self.instances.get(instances_count)
 			if single_instances.get('use_traffic_package') < single_instances.get('total_traffic_package') * quota:
-				del limit_instances[instances_count]
+				normal_instances[instances_count] = single_instances
+			else:
+				limit_instances[instances_count] = single_instances
 		self.limit_instances = limit_instances
 		self.__shutdown()
-		return limit_instances
+		return [normal_instances, limit_instances]
 
 # Sever酱推送
 def sct_push(message):
@@ -114,14 +117,23 @@ def guardian():
 		for region_count in REGION:
 			object_d = light_house(account_count, ACCOUNT.get(account_count), region_count)
 			instances = object_d.check(QUOTA)
-			if instances != {}:
-				message = ''
-				GB = 1024 * 1024 * 1024
-				for instances_count in instances:
-					single_instances = instances.get(instances_count)
-					message += 'ID:' + instances_count + '\n\nIP地址:' + single_instances.get('ip_address') + '\n\n总共流量包:' + str(round(single_instances.get('total_traffic_package') / GB, 2)) + ' GB\n\n使用流量包:' + str(round(single_instances.get('use_traffic_package') / GB, 2)) + ' GB\n\n剩余流量包:' + str(round(single_instances.get('surplus_traffic_package') / GB, 2)) + ' GB\n\n'
-				message += '以上实例流量包使用已达到限额,已执行关机命令.'
-				sct_push(message)
+			normal_instances = instances[0]
+			limit_instances = instances[1]
+			normal_message = ''
+			limit_message = ''
+			GB = 1024 * 1024 * 1024
+			if normal_instances:
+				for normal_instances_count in normal_instances:
+					single_normal_instances = normal_instances.get(normal_instances_count)
+					normal_message += 'ID:' + normal_instances_count + '\n\nIP地址:' + single_normal_instances.get('ip_address') + '\n\n总共流量包:' + str(round(single_normal_instances.get('total_traffic_package') / GB, 2)) + ' GB\n\n使用流量包:' + str(round(single_normal_instances.get('use_traffic_package') / GB, 2)) + ' GB\n\n剩余流量包:' + str(round(single_normal_instances.get('surplus_traffic_package') / GB, 2)) + ' GB\n\n---------------\n\n'
+				normal_message += '以上实例流量包使用未达到限额.'
+			if limit_instances:
+				for limit_instances_count in limit_instances:
+					single_limit_instances = limit_instances.get(limit_instances_count)
+					limit_message += 'ID:' + limit_instances_count + '\n\nIP地址:' + single_limit_instances.get('ip_address') + '\n\n总共流量包:' + str(round(single_limit_instances.get('total_traffic_package') / GB, 2)) + ' GB\n\n使用流量包:' + str(round(single_limit_instances.get('use_traffic_package') / GB, 2)) + ' GB\n\n剩余流量包:' + str(round(single_limit_instances.get('surplus_traffic_package') / GB, 2)) + ' GB\n\n---------------\n\n'
+				limit_message += '以上实例流量包使用已达到限额,已执行关机命令.'
+				sct_push(limit_message)
+	print(f'[正常]\n{normal_message}\n[限额]\n{limit_message}')
 
 if __name__ == '__main__':
 	guardian()
